@@ -4436,24 +4436,22 @@ end
 AutoFruitsSystem()
 
 --================================================--
--- AUTO REEXEC ON TELEPORT
+-- SELF REEXEC (SCRIPT ATUAL)
 --================================================--
 local SCRIPT_URL = "https://raw.githubusercontent.com/SeilaNomeFoda/Oo/refs/heads/main/text%2014.txt"
 
 if queue_on_teleport then
     queue_on_teleport([[
-        -- Define o time ANTES de qualquer coisa
+        -- Set team right after teleport
         pcall(function()
             game:GetService("ReplicatedStorage")
                 :WaitForChild("Remotes")
                 :WaitForChild("CommF_")
                 :InvokeServer("SetTeam", "Pirates")
         end)
-
-        -- Pequeno delay para garantir replicação
         task.wait(1)
 
-        -- Carrega o script principal
+        -- Then reexecute the main script
         loadstring(game:HttpGet("]] .. SCRIPT_URL .. [["))()
     ]])
 end
@@ -4474,13 +4472,15 @@ local placeId = game.PlaceId
 local MIN_FREE_SLOTS = 2
 local MAX_PAGES = 5
 local VISITED_EXPIRE = 120
-local HOP_COOLDOWN = 15
+local HOP_COOLDOWN = 6
+local FRUIT_HOLD_TIME = 2 -- segundos com fruta no inventário
 
 --================================================--
 -- CACHE
 --================================================--
 local visitedServers = {}
 local lastHop = 0
+local fruitStartTime = nil
 
 --================================================--
 -- UTILS
@@ -4552,8 +4552,6 @@ local function verifiedServerHop()
         visitedServers[bestServer.id] = os.time()
         lastHop = os.time()
 
-        print("[VerifiedHop] Indo para:", bestServer.id, "Slots:", bestSlots)
-
         TeleportService:TeleportToPlaceInstance(
             placeId,
             bestServer.id,
@@ -4562,31 +4560,60 @@ local function verifiedServerHop()
         return true
     end
 
-    warn("[VerifiedHop] Nenhum servidor válido")
     return false
 end
 
 --================================================--
--- FRUIT CHECK (EXEMPLO)
--- SUBSTITUA PELA SUA LÓGICA REAL
+-- FRUIT DETECTION (INVENTORY)
 --================================================--
-function hasFruitsInServer()
-    for _, v in pairs(workspace:GetDescendants()) do
-        if v:IsA("Tool") and v.Name:lower():find("fruit") then
+local function hasFruitInInventory()
+    local backpack = player:FindFirstChild("Backpack")
+    local character = player.Character
+
+    if backpack then
+        for _, item in pairs(backpack:GetChildren()) do
+            if item:IsA("Tool") and item.Name:lower():find("fruit") then
+                return true
+            end
+        end
+    end
+
+    if character then
+        for _, item in pairs(character:GetChildren()) do
+            if item:IsA("Tool") and item.Name:lower():find("fruit") then
+                return true
+            end
+        end
+    end
+
+    return false
+end
+
+--================================================--
+-- FRUIT TIMER CHECK
+--================================================--
+local function shouldHopBecauseFruit()
+    if hasFruitInInventory() then
+        if not fruitStartTime then
+            fruitStartTime = os.clock()
+        elseif os.clock() - fruitStartTime >= FRUIT_HOLD_TIME then
             return true
         end
+    else
+        fruitStartTime = nil
     end
     return false
 end
 
 --================================================--
--- MAIN LOOP
+-- MAIN LOOP (3 EM 3 SEGUNDOS)
 --================================================--
 task.spawn(function()
-    while task.wait(5) do
-        if not hasFruitsInServer() then
+    while true do
+        if shouldHopBecauseFruit() then
             verifiedServerHop()
-            task.wait(HOP_COOLDOWN)
+            fruitStartTime = nil
         end
+        task.wait(3)
     end
 end)
