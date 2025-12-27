@@ -4436,22 +4436,27 @@ end
 AutoFruitsSystem()
 
 --================================================--
--- SELF REEXEC (SCRIPT ATUAL)
+-- CONFIG
 --================================================--
 local SCRIPT_URL = "https://raw.githubusercontent.com/SeilaNomeFoda/Oo/refs/heads/main/text%2014.txt"
+local HOP_INTERVAL = 4 -- segundos
 
+--================================================--
+-- AUTO REEXEC ON TELEPORT
+--================================================--
 if queue_on_teleport then
     queue_on_teleport([[
-        -- Set team right after teleport
+        -- Set Team first
         pcall(function()
             game:GetService("ReplicatedStorage")
                 :WaitForChild("Remotes")
                 :WaitForChild("CommF_")
                 :InvokeServer("SetTeam", "Pirates")
         end)
+
         task.wait(1)
 
-        -- Then reexecute the main script
+        -- Reexecute script
         loadstring(game:HttpGet("]] .. SCRIPT_URL .. [["))()
     ]])
 end
@@ -4467,153 +4472,35 @@ local player = Players.LocalPlayer
 local placeId = game.PlaceId
 
 --================================================--
--- CONFIG
+-- SERVER HOP (SIMPLES E FUNCIONAL)
 --================================================--
-local MIN_FREE_SLOTS = 2
-local MAX_PAGES = 5
-local VISITED_EXPIRE = 120
-local HOP_COOLDOWN = 6
-local FRUIT_HOLD_TIME = 2 -- segundos com fruta no inventário
-
---================================================--
--- CACHE
---================================================--
-local visitedServers = {}
-local lastHop = 0
-local fruitStartTime = nil
-
---================================================--
--- UTILS
---================================================--
-local function cleanupVisited()
-    local now = os.time()
-    for jobId, t in pairs(visitedServers) do
-        if now - t > VISITED_EXPIRE then
-            visitedServers[jobId] = nil
-        end
-    end
-end
-
---================================================--
--- SERVER VERIFIER
---================================================--
-local function isServerValid(server)
-    if not server or not server.id then return false end
-    if server.id == game.JobId then return false end
-    if server.playing >= server.maxPlayers then return false end
-
-    local free = server.maxPlayers - server.playing
-    if free < MIN_FREE_SLOTS then return false end
-    if visitedServers[server.id] then return false end
-
-    return true, free
-end
-
---================================================--
--- VERIFIED SERVER HOP
---================================================--
-local function verifiedServerHop()
-    if os.time() - lastHop < HOP_COOLDOWN then
-        return false
-    end
-
-    cleanupVisited()
-
-    local cursor = ""
-    local bestServer, bestSlots = nil, -1
-
-    for page = 1, MAX_PAGES do
-        local url =
-            "https://games.roblox.com/v1/games/" .. placeId ..
-            "/servers/Public?limit=100&sortOrder=Asc" ..
-            (cursor ~= "" and "&cursor=" .. cursor or "")
-
-        local ok, response = pcall(function()
-            return HttpService:JSONDecode(game:HttpGet(url))
-        end)
-
-        if not ok or not response or not response.data then
-            break
-        end
-
-        for _, server in ipairs(response.data) do
-            local valid, free = isServerValid(server)
-            if valid and free > bestSlots then
-                bestSlots = free
-                bestServer = server
-            end
-        end
-
-        cursor = response.nextPageCursor
-        if not cursor then break end
-    end
-
-    if bestServer then
-        visitedServers[bestServer.id] = os.time()
-        lastHop = os.time()
-
-        TeleportService:TeleportToPlaceInstance(
-            placeId,
-            bestServer.id,
-            player
+local function fruitHop()
+    local response = HttpService:JSONDecode(
+        game:HttpGet(
+            "https://games.roblox.com/v1/games/" ..
+            placeId ..
+            "/servers/Public?limit=100&sortOrder=Asc"
         )
-        return true
-    end
+    )
 
-    return false
+    for _, server in pairs(response.data) do
+        if server.id ~= game.JobId and server.playing < server.maxPlayers then
+            TeleportService:TeleportToPlaceInstance(
+                placeId,
+                server.id,
+                player
+            )
+            return
+        end
+    end
 end
 
 --================================================--
--- FRUIT DETECTION (INVENTORY)
---================================================--
-local function hasFruitInInventory()
-    local backpack = player:FindFirstChild("Backpack")
-    local character = player.Character
-
-    if backpack then
-        for _, item in pairs(backpack:GetChildren()) do
-            if item:IsA("Tool") and item.Name:lower():find("fruit") then
-                return true
-            end
-        end
-    end
-
-    if character then
-        for _, item in pairs(character:GetChildren()) do
-            if item:IsA("Tool") and item.Name:lower():find("fruit") then
-                return true
-            end
-        end
-    end
-
-    return false
-end
-
---================================================--
--- FRUIT TIMER CHECK
---================================================--
-local function shouldHopBecauseFruit()
-    if hasFruitInInventory() then
-        if not fruitStartTime then
-            fruitStartTime = os.clock()
-        elseif os.clock() - fruitStartTime >= FRUIT_HOLD_TIME then
-            return true
-        end
-    else
-        fruitStartTime = nil
-    end
-    return false
-end
-
---================================================--
--- MAIN LOOP (3 EM 3 SEGUNDOS)
+-- MAIN LOOP (HOP A CADA 4 SEGUNDOS)
 --================================================--
 task.spawn(function()
     while true do
-        if shouldHopBecauseFruit() then
-            verifiedServerHop()
-            fruitStartTime = nil
-        end
-        task.wait(3)
+        fruitHop()
+        task.wait(HOP_INTERVAL)
     end
 end)
