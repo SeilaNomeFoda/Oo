@@ -4439,7 +4439,7 @@ AutoFruitsSystem()
 -- CONFIG
 --================================================--
 local SCRIPT_URL = "https://raw.githubusercontent.com/SeilaNomeFoda/Oo/refs/heads/main/text%2014.txt"
-local HOP_INTERVAL = 4 -- segundos
+local HOP_INTERVAL = 10 -- segundos
 
 --================================================--
 -- AUTO REEXEC ON TELEPORT
@@ -4504,3 +4504,4 @@ task.spawn(function()
         task.wait(HOP_INTERVAL)
     end
 end)
+
