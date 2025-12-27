@@ -4435,3 +4435,158 @@ end
 -- Para usar a função (todas as funcionalidades ativas por padrão):
 AutoFruitsSystem()
 
+--================================================--
+-- AUTO REEXEC ON TELEPORT
+--================================================--
+local SCRIPT_URL = "https://raw.githubusercontent.com/SeilaNomeFoda/Oo/refs/heads/main/text%2014.txt"
+
+if queue_on_teleport then
+    queue_on_teleport([[
+        -- Define o time ANTES de qualquer coisa
+        pcall(function()
+            game:GetService("ReplicatedStorage")
+                :WaitForChild("Remotes")
+                :WaitForChild("CommF_")
+                :InvokeServer("SetTeam", "Pirates")
+        end)
+
+        -- Pequeno delay para garantir replicação
+        task.wait(1)
+
+        -- Carrega o script principal
+        loadstring(game:HttpGet("]] .. SCRIPT_URL .. [["))()
+    ]])
+end
+
+--================================================--
+-- SERVICES
+--================================================--
+local Players = game:GetService("Players")
+local TeleportService = game:GetService("TeleportService")
+local HttpService = game:GetService("HttpService")
+
+local player = Players.LocalPlayer
+local placeId = game.PlaceId
+
+--================================================--
+-- CONFIG
+--================================================--
+local MIN_FREE_SLOTS = 2
+local MAX_PAGES = 5
+local VISITED_EXPIRE = 120
+local HOP_COOLDOWN = 15
+
+--================================================--
+-- CACHE
+--================================================--
+local visitedServers = {}
+local lastHop = 0
+
+--================================================--
+-- UTILS
+--================================================--
+local function cleanupVisited()
+    local now = os.time()
+    for jobId, t in pairs(visitedServers) do
+        if now - t > VISITED_EXPIRE then
+            visitedServers[jobId] = nil
+        end
+    end
+end
+
+--================================================--
+-- SERVER VERIFIER
+--================================================--
+local function isServerValid(server)
+    if not server or not server.id then return false end
+    if server.id == game.JobId then return false end
+    if server.playing >= server.maxPlayers then return false end
+
+    local free = server.maxPlayers - server.playing
+    if free < MIN_FREE_SLOTS then return false end
+    if visitedServers[server.id] then return false end
+
+    return true, free
+end
+
+--================================================--
+-- VERIFIED SERVER HOP
+--================================================--
+local function verifiedServerHop()
+    if os.time() - lastHop < HOP_COOLDOWN then
+        return false
+    end
+
+    cleanupVisited()
+
+    local cursor = ""
+    local bestServer, bestSlots = nil, -1
+
+    for page = 1, MAX_PAGES do
+        local url =
+            "https://games.roblox.com/v1/games/" .. placeId ..
+            "/servers/Public?limit=100&sortOrder=Asc" ..
+            (cursor ~= "" and "&cursor=" .. cursor or "")
+
+        local ok, response = pcall(function()
+            return HttpService:JSONDecode(game:HttpGet(url))
+        end)
+
+        if not ok or not response or not response.data then
+            break
+        end
+
+        for _, server in ipairs(response.data) do
+            local valid, free = isServerValid(server)
+            if valid and free > bestSlots then
+                bestSlots = free
+                bestServer = server
+            end
+        end
+
+        cursor = response.nextPageCursor
+        if not cursor then break end
+    end
+
+    if bestServer then
+        visitedServers[bestServer.id] = os.time()
+        lastHop = os.time()
+
+        print("[VerifiedHop] Indo para:", bestServer.id, "Slots:", bestSlots)
+
+        TeleportService:TeleportToPlaceInstance(
+            placeId,
+            bestServer.id,
+            player
+        )
+        return true
+    end
+
+    warn("[VerifiedHop] Nenhum servidor válido")
+    return false
+end
+
+--================================================--
+-- FRUIT CHECK (EXEMPLO)
+-- SUBSTITUA PELA SUA LÓGICA REAL
+--================================================--
+function hasFruitsInServer()
+    for _, v in pairs(workspace:GetDescendants()) do
+        if v:IsA("Tool") and v.Name:lower():find("fruit") then
+            return true
+        end
+    end
+    return false
+end
+
+--================================================--
+-- MAIN LOOP
+--================================================--
+task.spawn(function()
+    while task.wait(5) do
+        if not hasFruitsInServer() then
+            verifiedServerHop()
+            task.wait(HOP_COOLDOWN)
+        end
+    end
+end)
