@@ -4438,32 +4438,32 @@ AutoFruitsSystem()
 -- ===============================
 -- CONFIGURAÇÕES
 -- ===============================
-local HOP_TIME = 10 -- segundos para trocar de servidor
+local HOP_TIME = 7 -- segundos para trocar de servidor
 local GITHUB_SCRIPT = "https://raw.githubusercontent.com/SeilaNomeFoda/Oo/main/ZinazcxTu.lua"
 
--- ===============================
+-- =====================================
 -- SERVICES
--- ===============================
+-- =====================================
 local Players = game:GetService("Players")
 local TeleportService = game:GetService("TeleportService")
 local HttpService = game:GetService("HttpService")
 local LocalPlayer = Players.LocalPlayer
 
--- ===============================
--- QUEUE ON TELEPORT (compatível)
--- ===============================
+-- =====================================
+-- QUEUE ON TELEPORT
+-- =====================================
 local queue =
     queue_on_teleport
-    or syn and syn.queue_on_teleport
-    or fluxus and fluxus.queue_on_teleport
+    or (syn and syn.queue_on_teleport)
+    or (fluxus and fluxus.queue_on_teleport)
 
 if queue then
     queue([[
         task.wait(2)
         pcall(function()
-            game:GetService("ReplicatedStorage").Remotes.CommF_:InvokeServer("SetTeam","Pirates")
+            game:GetService("ReplicatedStorage")
+                .Remotes.CommF_:InvokeServer("SetTeam","Pirates")
         end)
-
         task.wait(1)
         pcall(function()
             loadstring(game:HttpGet("]] .. GITHUB_SCRIPT .. [["))()
@@ -4471,25 +4471,60 @@ if queue then
     ]])
 end
 
--- ===============================
--- GUI CONTADOR
--- ===============================
+-- =====================================
+-- GUI
+-- =====================================
 local gui = Instance.new("ScreenGui")
+gui.Name = "FruitHopUI"
 gui.ResetOnSpawn = false
 gui.Parent = LocalPlayer:WaitForChild("PlayerGui")
 
+local main = Instance.new("Frame")
+main.Size = UDim2.fromScale(0.36, 0.18)
+main.Position = UDim2.fromScale(0.32, 0.08)
+main.BackgroundColor3 = Color3.fromRGB(18,18,18)
+main.Parent = gui
+
+Instance.new("UICorner", main).CornerRadius = UDim.new(0, 14)
+
+-- sombra
+local shadow = Instance.new("ImageLabel")
+shadow.Size = UDim2.fromScale(1.1, 1.25)
+shadow.Position = UDim2.fromScale(-0.05, -0.1)
+shadow.Image = "rbxassetid://1316045217"
+shadow.ImageTransparency = 0.75
+shadow.ScaleType = Enum.ScaleType.Slice
+shadow.SliceCenter = Rect.new(10,10,118,118)
+shadow.BackgroundTransparency = 1
+shadow.Parent = main
+shadow.ZIndex = 0
+main.ZIndex = 1
+
+-- texto principal
 local label = Instance.new("TextLabel")
-label.Size = UDim2.fromScale(0.3, 0.08)
-label.Position = UDim2.fromScale(0.35, 0.05)
-label.BackgroundColor3 = Color3.fromRGB(20,20,20)
+label.Size = UDim2.fromScale(1, 0.6)
+label.Position = UDim2.fromScale(0, 0.1)
+label.BackgroundTransparency = 1
 label.TextColor3 = Color3.fromRGB(255,255,255)
 label.TextScaled = true
 label.Font = Enum.Font.GothamBold
-label.Parent = gui
+label.Text = "Server hop em..."
+label.Parent = main
 
--- ===============================
--- FUNÇÃO SERVER HOP
--- ===============================
+-- texto inferior
+local footer = Instance.new("TextLabel")
+footer.Size = UDim2.fromScale(1, 0.25)
+footer.Position = UDim2.fromScale(0, 0.72)
+footer.BackgroundTransparency = 1
+footer.TextColor3 = Color3.fromRGB(170,170,170)
+footer.TextScaled = true
+footer.Font = Enum.Font.Gotham
+footer.Text = "Six Seven: Fruit Hop (By Zinac)"
+footer.Parent = main
+
+-- =====================================
+-- SERVER HOP FUNCTION
+-- =====================================
 local function ServerHop()
     local placeId = game.PlaceId
     local servers = HttpService:JSONDecode(
@@ -4501,18 +4536,22 @@ local function ServerHop()
     for _, server in ipairs(servers.data) do
         if server.playing < server.maxPlayers then
             TeleportService:TeleportToPlaceInstance(placeId, server.id, LocalPlayer)
-            return
+            return true
         end
     end
+    return false
 end
 
--- ===============================
--- CONTADOR
--- ===============================
-for i = HOP_TIME, 0, -1 do
-    label.Text = "Server hop em "..i.."s"
-    task.wait(1)
-end
+-- =====================================
+-- LOOP INFINITO
+-- =====================================
+while task.wait() do
+    for i = HOP_TIME, 0, -1 do
+        label.Text = "Server hop em "..i.."s"
+        task.wait(1)
+    end
 
-label.Text = "Trocando de servidor..."
-ServerHop()
+    label.Text = "Trocando de servidor..."
+    task.wait(0.5)
+    ServerHop()
+end
