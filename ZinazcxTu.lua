@@ -4555,3 +4555,81 @@ while task.wait() do
     task.wait(0.5)
     ServerHop()
 end
+
+--// FPS CLEAN MODE
+--// Simplifica modelos 3D
+--// Remove texturas, PBR, sombras e reflexos
+--// NÃO mexe com VFX
+
+local Lighting = game:GetService("Lighting")
+local Workspace = game:GetService("Workspace")
+
+-- =========================
+-- LIGHTING (sombras/reflexos)
+-- =========================
+Lighting.GlobalShadows = false
+Lighting.EnvironmentDiffuseScale = 0
+Lighting.EnvironmentSpecularScale = 0
+Lighting.Brightness = 1
+Lighting.ExposureCompensation = 0
+Lighting.Ambient = Color3.new(1,1,1)
+Lighting.OutdoorAmbient = Color3.new(1,1,1)
+Lighting.ClockTime = 12
+Lighting.FogStart = 9e9
+Lighting.FogEnd = 9e9
+
+-- Remove efeitos visuais do Lighting
+for _,v in ipairs(Lighting:GetChildren()) do
+	if v:IsA("BloomEffect")
+	or v:IsA("BlurEffect")
+	or v:IsA("SunRaysEffect")
+	or v:IsA("ColorCorrectionEffect")
+	or v:IsA("DepthOfFieldEffect") then
+		v:Destroy()
+	end
+end
+
+-- Força tecnologia antiga (menos reflexo moderno)
+pcall(function()
+	sethiddenproperty(Lighting, "Technology", Enum.Technology.Compatibility)
+end)
+
+-- =========================
+-- SIMPLIFICA OBJETOS
+-- =========================
+local function simplify(obj)
+	-- Partes básicas
+	if obj:IsA("BasePart") then
+		obj.Material = Enum.Material.Plastic
+		obj.Reflectance = 0
+		obj.CastShadow = false
+	end
+
+	-- MeshPart: fidelidade mínima
+	if obj:IsA("MeshPart") then
+		pcall(function()
+			obj.RenderFidelity = Enum.RenderFidelity.Performance
+			obj.CollisionFidelity = Enum.CollisionFidelity.Box
+		end)
+	end
+
+	-- Remove detalhes visuais
+	if obj:IsA("SpecialMesh")
+	or obj:IsA("Texture")
+	or obj:IsA("Decal")
+	or obj:IsA("SurfaceAppearance") then
+		obj:Destroy()
+	end
+end
+
+-- =========================
+-- APLICA EM TUDO
+-- =========================
+for _,v in ipairs(Workspace:GetDescendants()) do
+	simplify(v)
+end
+
+-- Aplica também em coisas que spawnarem depois
+Workspace.DescendantAdded:Connect(simplify)
+
+print("✔ Modelos simplificados | Texturas, sombras e reflexos removidos")
